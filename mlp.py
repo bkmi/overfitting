@@ -13,13 +13,40 @@ import torch.optim as optim
 DATADIR = os.path.dirname(__file__) + '/../data'
 
 
-def fashion_mnist():
+class LabelCorrupter(torch.utils.data.Dataset):
+    def __init__(self, dataset, corruption_chance: float = 1.0, seed: int = 42):
+        self.dataset = dataset
+        self.random_labels = np.random.choice(np.unique(self.dataset.targets).tolist(),
+                                              size=len(self.dataset))
+        self.corrupt_labels = self.create_corrupt_labels(corruption_chance, seed)
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, item):
+        return self.dataset[item][0], self.corrupt_labels[item]
+
+    def create_corrupt_labels(self, corruption_chance: float = 1.0, seed: int = 42):
+        np.random.seed(seed)
+        random_labels = np.random.choice(np.unique(self.dataset.targets).tolist(), size=len(self.dataset))
+        corruption_mask = np.random.rand(len(self.dataset)) <= corruption_chance
+        not_corrupt_mask = np.logical_not(corruption_mask)
+
+        assert np.all(corruption_mask + not_corrupt_mask)
+        assert len(corruption_mask) == len(self.dataset.targets)
+        assert len(not_corrupt_mask) == len(self.dataset.targets)
+
+        return not_corrupt_mask * self.dataset.targets.numpy() + corruption_mask * random_labels
+
+
+def fashion_mnist(corruption_chance=0.0):
     transform = torchvision.transforms.Compose(
         [torchvision.transforms.ToTensor(),
          torchvision.transforms.Normalize([0.5], [0.5])])
 
     train_set = torchvision.datasets.FashionMNIST(root=DATADIR, train=True, download=True, transform=transform)
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=4, shuffle=True, num_workers=2)
+    train_set_corrupt = LabelCorrupter(train_set, corruption_chance)
+    train_loader = torch.utils.data.DataLoader(train_set_corrupt, batch_size=4, shuffle=True, num_workers=2)
 
     test_set = torchvision.datasets.FashionMNIST(root=DATADIR, train=False, download=True, transform=transform)
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=4, shuffle=False, num_workers=2)
@@ -29,13 +56,14 @@ def fashion_mnist():
     return train_loader, test_loader, classes
 
 
-def mnist():
+def mnist(corruption_chance=0.0):
     transform = torchvision.transforms.Compose(
         [torchvision.transforms.ToTensor(),
          torchvision.transforms.Normalize([0.5], [0.5])])
 
     train_set = torchvision.datasets.MNIST(root=DATADIR, train=True, download=True, transform=transform)
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=4, shuffle=True, num_workers=2)
+    train_set_corrupt = LabelCorrupter(train_set, corruption_chance)
+    train_loader = torch.utils.data.DataLoader(train_set_corrupt, batch_size=4, shuffle=True, num_workers=2)
 
     test_set = torchvision.datasets.MNIST(root=DATADIR, train=False, download=True, transform=transform)
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=4, shuffle=False, num_workers=2)
@@ -66,8 +94,7 @@ def main():
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(mlp.parameters(), lr=0.001, momentum=0.9)
 
-    for epoch in range(2):  # loop over the dataset multiple times
-
+    for epoch in range(10):
         running_loss = 0.0
         for i, data in enumerate(trainloader, 0):
             # get the inputs; data is a list of [inputs, labels]
