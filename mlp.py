@@ -10,7 +10,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 
-DATADIR = os.path.dirname(__file__) + '/../data'
+# DATADIR = os.path.dirname(__file__) + '/../data'
+DATADIR = os.path.dirname(__file__) + '/data'
 
 
 class LabelCorrupter(torch.utils.data.Dataset):
@@ -73,6 +74,12 @@ def mnist(corruption_chance=0.0):
     return train_loader, test_loader, classes
 
 
+def weights_init(m):
+    if isinstance(m, nn.Conv2d):
+        nn.init.xavier_normal(m.weight.data)
+        nn.init.xavier_normal(m.bias.data)
+
+
 class MLP(nn.Module):
     def __init__(self):
         super(MLP, self).__init__()
@@ -86,15 +93,20 @@ class MLP(nn.Module):
         return x
 
 
-def main():
-    trainloader, testloader, classes = mnist()
+if __name__ == '__main__':
+    corruption = 0.0  # TODO: set a linspace of coruption and redo the plot for each.
+    trainloader, testloader, _ = mnist(corruption)
+    # trainloader, testloader, _ = fashion_mnist(corruption)
 
     mlp = MLP()
+    mlp.apply(weights_init)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(mlp.parameters(), lr=0.001, momentum=0.9)
+    counter = 0
+    losses = []
 
-    for epoch in range(10):
+    for epoch in range(3):
         running_loss = 0.0
         for i, data in enumerate(trainloader, 0):
             # get the inputs; data is a list of [inputs, labels]
@@ -116,8 +128,10 @@ def main():
                       (epoch + 1, i + 1, running_loss / 2000))
                 running_loss = 0.0
 
+            losses.append(loss.item())
+            counter += 1
+        np.save(f'{corruption}.npy')
+    plt.plot([a.mean() for a in np.split(np.asarray(losses), len(losses) / 1000)])
+    plt.show()
+
     print('Finished Training')
-
-
-if __name__ == '__main__':
-    main()

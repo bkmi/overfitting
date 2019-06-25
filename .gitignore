@@ -1,6 +1,7 @@
 # Special Dirs and ln
 ignore/
 ignore
+data/
 
 # PyCharm
 .idea/
