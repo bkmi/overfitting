@@ -10,9 +10,9 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 
-# DATADIR = os.path.dirname(__file__) + '/../data'
+DATADIR = os.path.dirname(__file__) + '/../data'
 # DATADIR = os.path.dirname(__file__) + '/data'
-DATADIR = './data'
+# DATADIR = './data'
 print(DATADIR)
 BATCH_SIZE = 128
 
@@ -107,7 +107,7 @@ if __name__ == '__main__':
     mlp = MLP()
 
     # for corrupt in corruption:
-    for corrupt in [corruption[-1]]:
+    for corrupt in [corruption[0]]:
         trainloader, testloader, _ = mnist(corrupt, batch_size=BATCH_SIZE)
         # trainloader, testloader, _ = fashion_mnist(corrupt, batch_size=BATCH_SIZE)
 
@@ -120,7 +120,7 @@ if __name__ == '__main__':
 
         disp_batch = len(trainloader) // 5
         # n_epochs = int(np.ceil(20000/len(trainloader)))
-        n_epochs = 600
+        n_epochs = 100
 
         for epoch in range(n_epochs):
             print(f"LR = {optimizer.param_groups[0]['lr']}")
@@ -154,6 +154,6 @@ if __name__ == '__main__':
         print('Finished Training')
 
     models = np.asarray(models)
-    np.save('models_mnist.npy', models)
+    np.save('mnist.npy', models)
     # plt.plot([a.mean() for a in np.split(np.asarray(losses), len(losses) / 1000)])
     # plt.show()
