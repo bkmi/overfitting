@@ -52,7 +52,7 @@ def fashion_mnist(corruption_chance=0.0):
     test_set = torchvision.datasets.FashionMNIST(root=DATADIR, train=False, download=True, transform=transform)
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=4, shuffle=False, num_workers=2)
 
-    classes = ("T-shirt/top", "Trouser", "Pullover", "Dress", "Coat", "Sandal", "Shirt", "Sneaker", "Bag", "Ankle boot")
+    classes = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
 
     return train_loader, test_loader, classes
 
@@ -76,8 +76,8 @@ def mnist(corruption_chance=0.0):
 
 def weights_init(m):
     if isinstance(m, nn.Conv2d):
-        nn.init.xavier_normal(m.weight.data)
-        nn.init.xavier_normal(m.bias.data)
+        nn.init.kaiming_normal(m.weight.data)
+        nn.init.constant(m.bias.data, 0.0)
 
 
 class MLP(nn.Module):
@@ -94,44 +94,50 @@ class MLP(nn.Module):
 
 
 if __name__ == '__main__':
-    corruption = 0.0  # TODO: set a linspace of coruption and redo the plot for each.
-    trainloader, testloader, _ = mnist(corruption)
-    # trainloader, testloader, _ = fashion_mnist(corruption)
+    corruption = np.linspace(0.0, 1.0, num=5)
 
+    models = []
     mlp = MLP()
-    mlp.apply(weights_init)
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(mlp.parameters(), lr=0.001, momentum=0.9)
-    counter = 0
-    losses = []
+    for corrupt in corruption:
+        trainloader, testloader, _ = mnist(corrupt)
+        # trainloader, testloader, _ = fashion_mnist(corrupt)
 
-    for epoch in range(3):
-        running_loss = 0.0
-        for i, data in enumerate(trainloader, 0):
-            # get the inputs; data is a list of [inputs, labels]
-            inputs, labels = data
+        mlp.apply(weights_init)
+        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.SGD(mlp.parameters(), lr=0.001, momentum=0.9)
+        counter = 0
+        losses = []
 
-            # zero the parameter gradients
-            optimizer.zero_grad()
+        for epoch in range(1):
+            running_loss = 0.0
+            for i, data in enumerate(trainloader, 0):
+                # get the inputs; data is a list of [inputs, labels]
+                inputs, labels = data
 
-            # forward + backward + optimize
-            outputs = mlp(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
+                # zero the parameter gradients
+                optimizer.zero_grad()
 
-            # print statistics
-            running_loss += loss.item()
-            if i % 2000 == 1999:  # print every 2000 mini-batches
-                print('[%d, %5d] loss: %.3f' %
-                      (epoch + 1, i + 1, running_loss / 2000))
-                running_loss = 0.0
+                # forward + backward + optimize
+                outputs = mlp(inputs)
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
 
-            losses.append(loss.item())
-            counter += 1
-        np.save(f'{corruption}.npy')
-    plt.plot([a.mean() for a in np.split(np.asarray(losses), len(losses) / 1000)])
-    plt.show()
+                # print statistics
+                running_loss += loss.item()
+                if i % 2000 == 1999:  # print every 2000 mini-batches
+                    print('[%d, %5d] loss: %.3f' %
+                          (epoch + 1, i + 1, running_loss / 2000))
+                    running_loss = 0.0
 
-    print('Finished Training')
+                losses.append(loss.item())
+                counter += 1
+
+        models.append(losses)
+        print('Finished Training')
+
+    models = np.asarray(models)
+    np.save('models.npy', models)
+    # plt.plot([a.mean() for a in np.split(np.asarray(losses), len(losses) / 1000)])
+    # plt.show()
