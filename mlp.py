@@ -114,7 +114,7 @@ if __name__ == '__main__':
         # mlp.apply(weights_init)
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.SGD(mlp.parameters(), lr=0.01, momentum=0.9)
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.95)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.95)
         counter = 0
         losses = []
 
