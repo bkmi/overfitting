@@ -108,8 +108,8 @@ if __name__ == '__main__':
 
     # for corrupt in corruption:
     for corrupt in [corruption[-1]]:
-        # trainloader, testloader, _ = mnist(corrupt, batch_size=BATCH_SIZE)
-        trainloader, testloader, _ = fashion_mnist(corrupt, batch_size=BATCH_SIZE)
+        trainloader, testloader, _ = mnist(corrupt, batch_size=BATCH_SIZE)
+        # trainloader, testloader, _ = fashion_mnist(corrupt, batch_size=BATCH_SIZE)
 
         # mlp.apply(weights_init)
         criterion = nn.CrossEntropyLoss()
@@ -154,6 +154,6 @@ if __name__ == '__main__':
         print('Finished Training')
 
     models = np.asarray(models)
-    np.save('models.npy', models)
+    np.save('models_mnist.npy', models)
     # plt.plot([a.mean() for a in np.split(np.asarray(losses), len(losses) / 1000)])
     # plt.show()
