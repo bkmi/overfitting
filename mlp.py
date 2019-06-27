@@ -11,7 +11,10 @@ import torch.optim as optim
 
 
 # DATADIR = os.path.dirname(__file__) + '/../data'
-DATADIR = os.path.dirname(__file__) + '/data'
+# DATADIR = os.path.dirname(__file__) + '/data'
+DATADIR = './data'
+print(DATADIR)
+BATCH_SIZE = 128
 
 
 class LabelCorrupter(torch.utils.data.Dataset):
@@ -19,7 +22,7 @@ class LabelCorrupter(torch.utils.data.Dataset):
         self.dataset = dataset
         self.random_labels = np.random.choice(np.unique(self.dataset.targets).tolist(),
                                               size=len(self.dataset))
-        self.corrupt_labels = self.create_corrupt_labels(corruption_chance, seed)
+        self.corrupt_labels = torch.from_numpy(self.create_corrupt_labels(corruption_chance, seed))
 
     def __len__(self):
         return len(self.dataset)
@@ -40,34 +43,38 @@ class LabelCorrupter(torch.utils.data.Dataset):
         return not_corrupt_mask * self.dataset.targets.numpy() + corruption_mask * random_labels
 
 
-def fashion_mnist(corruption_chance=0.0):
+def fashion_mnist(corruption_chance=0.0, batch_size=4):
     transform = torchvision.transforms.Compose(
         [torchvision.transforms.ToTensor(),
          torchvision.transforms.Normalize([0.5], [0.5])])
 
     train_set = torchvision.datasets.FashionMNIST(root=DATADIR, train=True, download=True, transform=transform)
     train_set_corrupt = LabelCorrupter(train_set, corruption_chance)
-    train_loader = torch.utils.data.DataLoader(train_set_corrupt, batch_size=4, shuffle=True, num_workers=2)
+    print(f"Percentage corrupt: "
+          f"{torch.tensor(1.0) - torch.mean(torch.eq(train_set_corrupt.corrupt_labels, train_set.targets).double())}")
+    train_loader = torch.utils.data.DataLoader(train_set_corrupt, batch_size=batch_size, shuffle=True, num_workers=2)
 
     test_set = torchvision.datasets.FashionMNIST(root=DATADIR, train=False, download=True, transform=transform)
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=4, shuffle=False, num_workers=2)
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=2)
 
     classes = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
 
     return train_loader, test_loader, classes
 
 
-def mnist(corruption_chance=0.0):
+def mnist(corruption_chance=0.0, batch_size=4):
     transform = torchvision.transforms.Compose(
         [torchvision.transforms.ToTensor(),
          torchvision.transforms.Normalize([0.5], [0.5])])
 
     train_set = torchvision.datasets.MNIST(root=DATADIR, train=True, download=True, transform=transform)
     train_set_corrupt = LabelCorrupter(train_set, corruption_chance)
-    train_loader = torch.utils.data.DataLoader(train_set_corrupt, batch_size=4, shuffle=True, num_workers=2)
+    print(f"Percentage corrupt: "
+          f"{torch.tensor(1.0) - torch.mean(torch.eq(train_set_corrupt.corrupt_labels, train_set.targets).double())}")
+    train_loader = torch.utils.data.DataLoader(train_set_corrupt, batch_size=batch_size, shuffle=True, num_workers=2)
 
     test_set = torchvision.datasets.MNIST(root=DATADIR, train=False, download=True, transform=transform)
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=4, shuffle=False, num_workers=2)
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=2)
 
     classes = ("T-shirt/top", "Trouser", "Pullover", "Dress", "Coat", "Sandal", "Shirt", "Sneaker", "Bag", "Ankle boot")
 
@@ -75,9 +82,9 @@ def mnist(corruption_chance=0.0):
 
 
 def weights_init(m):
-    if isinstance(m, nn.Conv2d):
-        nn.init.kaiming_normal(m.weight.data)
-        nn.init.constant(m.bias.data, 0.0)
+    if isinstance(m, nn.Linear):
+        nn.init.kaiming_normal_(m.weight.data)
+        nn.init.constant_(m.bias.data, 0.0)
 
 
 class MLP(nn.Module):
@@ -99,17 +106,24 @@ if __name__ == '__main__':
     models = []
     mlp = MLP()
 
-    for corrupt in corruption:
-        trainloader, testloader, _ = mnist(corrupt)
-        # trainloader, testloader, _ = fashion_mnist(corrupt)
+    # for corrupt in corruption:
+    for corrupt in [corruption[-1]]:
+        # trainloader, testloader, _ = mnist(corrupt, batch_size=BATCH_SIZE)
+        trainloader, testloader, _ = fashion_mnist(corrupt, batch_size=BATCH_SIZE)
 
-        mlp.apply(weights_init)
+        # mlp.apply(weights_init)
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.SGD(mlp.parameters(), lr=0.001, momentum=0.9)
+        optimizer = optim.SGD(mlp.parameters(), lr=0.01, momentum=0.9)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.95)
         counter = 0
         losses = []
 
-        for epoch in range(1):
+        disp_batch = len(trainloader) // 5
+        # n_epochs = int(np.ceil(20000/len(trainloader)))
+        n_epochs = 600
+
+        for epoch in range(n_epochs):
+            print(f"LR = {optimizer.param_groups[0]['lr']}")
             running_loss = 0.0
             for i, data in enumerate(trainloader, 0):
                 # get the inputs; data is a list of [inputs, labels]
@@ -126,13 +140,15 @@ if __name__ == '__main__':
 
                 # print statistics
                 running_loss += loss.item()
-                if i % 2000 == 1999:  # print every 2000 mini-batches
+                if i % disp_batch == disp_batch - 1:  # print 4 times
                     print('[%d, %5d] loss: %.3f' %
-                          (epoch + 1, i + 1, running_loss / 2000))
+                          (epoch + 1, i + 1, running_loss / disp_batch))
                     running_loss = 0.0
 
                 losses.append(loss.item())
                 counter += 1
+
+            scheduler.step()
 
         models.append(losses)
         print('Finished Training')
